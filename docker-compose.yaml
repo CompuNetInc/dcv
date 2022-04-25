@@ -1,0 +1,15 @@
+---
+version: '3.4'
+services:
+  dcv:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dcv:latest
+    working_dir: ${PWD}
+    environment:
+      - DIGICERT_KEY
+      - NEUSTAR_USERNAME
+      - NUESTAR_PASSWORD
+    volumes:
+      - ${PWD}:${PWD}
