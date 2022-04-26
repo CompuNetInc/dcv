@@ -83,7 +83,7 @@ set NEU_PASSWORD=mypassword
 
 ### Example Usage
 All commands support adding --help to get extra information
-If using docker, precede all commands with 'docker-compose run', i.e. 'docker-compose run dcv check -d abc.com'
+If using docker, precede all commands with `docker-compose run`, i.e. `docker-compose run dcv check -d abc.com`
 
 Logfile with error messages and final domain statuses found in dcv.log
 
