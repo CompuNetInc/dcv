@@ -83,7 +83,7 @@ def validate(
         prompt="Domain name (FQDN): ",
     ),
     timeout: Optional[int] = typer.Option(
-        120, help="Timeout length (in seconds) waiting for validation"
+        180, help="Timeout length (in seconds) waiting for validation"
     ),
 ) -> None:
     """
@@ -144,7 +144,7 @@ def run_all(
         help="Filename/Path to filename containing list of domains. One domain per line.",
     ),
     timeout: Optional[int] = typer.Option(
-        120, help="Timeout length (in seconds) to wait for validation."
+        180, help="Timeout length (in seconds) to wait for validation."
     ),
 ) -> None:
     """

@@ -1,9 +1,12 @@
 """dcv.dns_updater"""
 import json
+import logging
 import sys
 from typing import Any, Dict, List, Optional
 
 import httpx
+
+logger = logging.getLogger("utils")
 
 
 class DNSUpdater:
@@ -138,6 +141,7 @@ class DNSUpdater:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.key}",
         }
+        err_message = f"Creating CNAME record {cname}.{domain_name} Failed, moving to next domain."
 
         try:
             response = await self.session[self.key].post(
@@ -147,14 +151,16 @@ class DNSUpdater:
         except httpx.RequestError as e:
             print(f"{url=}, {headers=}, {payload=}")
             print("Request error: ", e)
-            sys.exit(1)
+            logger.exception(err_message)
+            return err_message
         except httpx.HTTPStatusError as e:
             print(f"{url=}, {headers=}, {payload=}")
             print("HTTP Status error: ", e)
-            sys.exit(1)
+            logger.exception(err_message)
+            return err_message
 
         if response.json().get("message") != "Successful":
-            return f"Creating CNAME record {cname}.{domain_name} Failed, moving to next domain."
+            return err_message
 
         return "Successful"
 
@@ -178,6 +184,7 @@ class DNSUpdater:
             "Content-Type": "application/x-www-form-urlencoded",
             "Authorization": f"Bearer {self.key}",
         }
+        err_message = f"Failed to delete cname {cname}.{domain_name}."
 
         try:
             response = await self.session[self.key].delete(url=url, headers=headers)
@@ -185,13 +192,15 @@ class DNSUpdater:
         except httpx.RequestError as e:
             print(f"{url=}, {headers=}")
             print("Request error: ", e)
-            sys.exit(1)
+            logger.exception(err_message)
+            return err_message
         except httpx.HTTPStatusError as e:
             print(f"{url=}, {headers=}")
             print("HTTP Status error: ", e)
-            sys.exit(1)
+            logger.exception(err_message)
+            return err_message
 
         if response.status_code != 204:
-            return f"Failed to delete cname {cname}.{domain_name}."
+            return err_message
 
         return "Successful"

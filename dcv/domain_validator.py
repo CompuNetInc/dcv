@@ -1,10 +1,13 @@
 """dcv.domain_validator"""
 import json
+import logging
 import sys
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
+
+logger = logging.getLogger("utils")
 
 
 class DomainValidator:
@@ -91,9 +94,7 @@ class DomainValidator:
 
         domains = await self.get_domains() if not domains else domains
 
-        exp_date = datetime.now() + timedelta(
-            float(num_days)
-        )  # expires 180 days from now
+        exp_date = datetime.now() + timedelta(num_days)  # expires 180 days from now
         exp_domains = []
 
         for domain in domains:
@@ -104,9 +105,6 @@ class DomainValidator:
             if dcv_expiration:
                 ev_exp_str = dcv_expiration["ev"]
                 ov_exp_str = dcv_expiration["ov"]
-            elif "not found!" in domain["name"]:
-                # print(f"Error: domain {domain['name']} Check spelling.")
-                continue
             else:
                 print(
                     f"Info: domain has never been validated, will be ignored: {domain['name']}."
@@ -160,60 +158,15 @@ class DomainValidator:
             )
 
         ov_exp = dcv_expiration["ov"]
-        ev_exp = dcv_expiration["ev"]
 
         validations = response.json().get("validations")
         if not validations:
-            return ("Failed", f"Failed to retrieve validations from {domain['name']}")
+            return "Failed", f"Failed to retrieve validations from {domain['name']}"
         ov_status = validations[0]["status"]
         ev_status = validations[1]["status"]
         dcv_status = f"{ov_status}/{ev_status}"
 
         return dcv_status, ov_exp
-
-    async def get_dcv_values(self, domain: Dict[str, Any]) -> Tuple[str, str]:
-        """
-        Get dcv_token and verification_value from domain, to use for cname creation.
-
-        Args:
-            domain: domain api object
-
-        Returns:
-            dcv_token
-            verification_value
-
-        Raises:
-            N/A
-        """
-
-        if domain["dcv_method"] != "dns-cname-token":
-            print(
-                "Error: Attempting to get dcv token when method is NOT set to dns-cname-token."
-            )
-            sys.exit(1)
-
-        url = f"https://www.digicert.com/services/v2/domain/{domain['id']}?include_dcv=true"
-
-        try:
-            response = await self.session[self.key].get(url=url, headers=self.headers)
-            response.raise_for_status()
-        except httpx.RequestError as e:
-            print(f"{url=}, {self.headers=}")
-            print("Request error: ", e)
-            sys.exit(1)
-        except httpx.HTTPStatusError as e:
-            print(f"{url=}, {self.headers=}")
-            print("HTTP Status error: ", e)
-            sys.exit(1)
-
-        if not response.json().get("dcv_token"):
-            print(f"API Error getting values from domain {domain['name']}")
-            sys.exit(1)
-
-        token = response.json()["dcv_token"]["token"]
-        verification_value = response.json()["dcv_token"]["verification_value"]
-
-        return token, verification_value
 
     async def change_dcv_method(
         self, domain: Dict[str, Any], dcv_type: str = "dns‑cname‑token"
@@ -233,6 +186,10 @@ class DomainValidator:
         """
         url = f"https://www.digicert.com/services/v2/domain/{domain['id']}/dcv/method"
         payload = json.dumps({"dcv_method": dcv_type})
+        err_message = (
+            "Failed",
+            f"API Error getting DCV values from domain {domain['name']}",
+        )
 
         try:
             response = await self.session[self.key].put(
@@ -242,18 +199,18 @@ class DomainValidator:
         except httpx.RequestError as e:
             print(f"{url=}, {self.headers=}")
             print("Request error: ", e)
-            sys.exit(1)
+            logger.exception(err_message)
+            return err_message
         except httpx.HTTPStatusError as e:
             print(f"{url=}, {self.headers=}")
             print("HTTP Status error: ", e)
-            sys.exit(1)
+            logger.exception(err_message)
+            return err_message
 
-        # Actual token values
+            # Actual token values
         if not response.json().get("dcv_token"):
-            return (
-                "failed",
-                f"API Error getting DCV values from domain {domain['name']}",
-            )
+            return err_message
+
         token = response.json()["dcv_token"]["token"]
         verification_value = response.json()["dcv_token"]["verification_value"]
 
@@ -281,6 +238,10 @@ class DomainValidator:
                 "dcv_method": "dns-cname-token",
             }
         )
+        err_message = (
+            "Failed",
+            f"Failed to submit {domain['name']} for validation.",
+        )
 
         try:
             response = await self.session[self.key].post(
@@ -290,17 +251,16 @@ class DomainValidator:
         except httpx.RequestError as e:
             print(f"{url=}, {self.headers=}")
             print("Request error: ", e)
-            sys.exit(1)
+            logger.exception(err_message)
+            return err_message
         except httpx.HTTPStatusError as e:
             print(f"{url=}, {self.headers=}")
             print("HTTP Status error: ", e)
-            sys.exit(1)
+            logger.exception(err_message)
+            return err_message
 
         if response.status_code != 201 or not response.json().get("dcv_token"):
-            return (
-                "Failed",
-                f"Failed to submit {domain['name']} for validation. Response was: {response}.",
-            )
+            return err_message
 
         token = response.json()["dcv_token"]["token"]
         verification_value = response.json()["dcv_token"]["verification_value"]
@@ -327,16 +287,23 @@ class DomainValidator:
         except httpx.RequestError as e:
             print(f"{url=}, {self.headers=}")
             print("Request error: ", e)
-            sys.exit(1)
+            logger.exception(f"Check for Validation failed on domain {domain['name']}.")
+            return False
         except httpx.HTTPStatusError as e:
             print(f"{url=}, {self.headers=}")
             print("HTTP Status error: ", e)
-            sys.exit(1)
+            logger.exception(f"Check for Validation failed on domain {domain['name']}.")
+            return False
 
-        valid_ov = response.json()["validations"][0]["status"]
-        valid_ov_dcv = response.json()["validations"][0]["dcv_status"]
-        valid_ev = response.json()["validations"][1]["status"]
-        valid_ev_dcv = response.json()["validations"][1]["dcv_status"]
+        validations = response.json().get("validations")
+        if not validations:
+            logger.exception(f"Check for Validation failed on domain {domain['name']}.")
+            return False
+
+        valid_ov = validations[0]["status"]
+        valid_ov_dcv = validations[0]["dcv_status"]
+        valid_ev = validations[1]["status"]
+        valid_ev_dcv = validations[1]["dcv_status"]
 
         if (
             valid_ov_dcv == "complete"
@@ -344,8 +311,6 @@ class DomainValidator:
             and valid_ov == "active"
             and valid_ev == "active"
         ):
-            print(f"{valid_ov}")
             return True
 
-        print(f"{valid_ov}")
         return False

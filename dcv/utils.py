@@ -1,5 +1,6 @@
 """dcv.utils"""
 import asyncio
+import logging
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -7,6 +8,14 @@ from typing import Any, Dict, List, Optional
 
 from dcv.dns_updater import DNSUpdater
 from dcv.domain_validator import DomainValidator
+
+# Logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s:%(levelname)s:%(message)s")
+file_handler = logging.FileHandler("dcv.log")
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 
 @dataclass
@@ -17,30 +26,6 @@ class DCVResponse:
     valid: bool
     cleanup: bool
     message: str
-
-
-def read_domains_from_file(filename: str) -> Dict[str, None]:
-    """
-    Read domain list from a file, one fqdn per line
-
-    Args:
-        filename: filename or path to filename
-
-    Returns:
-        Dict of domain names as key
-
-    Raises:
-        N/A
-    """
-    try:
-        with open(filename, "r", encoding="utf8") as fin:
-            domains = {d.rstrip("\n"): None for d in fin.readlines() if d != "\n"}
-    except IOError as e:
-        print(f"Error loading file: {filename}:")
-        print(e)
-        sys.exit(1)
-
-    return domains
 
 
 def print_final_results(results: List[DCVResponse]) -> None:
@@ -56,15 +41,20 @@ def print_final_results(results: List[DCVResponse]) -> None:
     Raises:
         N/A
     """
-    print("\nDomain Validation complete:")
-    print("\n---------------------------")
+    message = "\nDomain Validation complete:\n---------------------------\n"
+    print(message)
+    logger.info(message)
+
     for result in results:
         valid = "validated" if result.valid else "NOT VALIDATED"
         cleanup = "been cleaned up" if result.cleanup else "NOT BEEN CLEANED UP"
 
-        print(
-            f"Domain {result.domain_name} is {valid} and the cname has {cleanup}, with message: {result.message}"
+        message = (
+            f"Domain {result.domain_name} is {valid}"
+            f"and the cname has {cleanup}, with message: {result.message}"
         )
+        print(message)
+        logger.info(message)
 
 
 def print_expiring_domains(domains: List[Dict[str, Any]]) -> None:
@@ -95,6 +85,30 @@ def print_expiring_domains(domains: List[Dict[str, Any]]) -> None:
             )  # Get lowest date
 
             print(f"{domain['name']:<30} {f'Expiration: {exp_date_d.date()}':>30}")
+
+
+def read_domains_from_file(filename: str) -> Dict[str, None]:
+    """
+    Read domain list from a file, one fqdn per line
+
+    Args:
+        filename: filename or path to filename
+
+    Returns:
+        Dict of domain names as key
+
+    Raises:
+        N/A
+    """
+    try:
+        with open(filename, "r", encoding="utf8") as fin:
+            domains = {d.rstrip("\n"): None for d in fin.readlines() if d != "\n"}
+    except IOError as e:
+        print(f"Error loading file: {filename}:")
+        print(e)
+        sys.exit(1)
+
+    return domains
 
 
 async def get_domains_from_file(
@@ -128,7 +142,9 @@ async def get_domains_from_file(
     # Print anything not found
     if domain_names:
         for domain in domain_names:
-            print(f"Warning: domain {domain} not found! Check spelling.")
+            message = f"Warning: domain {domain} not found! Check spelling."
+            print(message)
+            logger.warning(message)
 
     # Return any expiring domains
     return await dv_obj.get_expiring_domains(domains=domains, num_days=num_days)
@@ -239,7 +255,7 @@ async def runall(
     password: str,
     file: str = None,
     num_days: int = 90,
-    timeout: int = 120,
+    timeout: int = 180,
     expiring_domains: List[Dict[str, Any]] = None,
 ) -> None:
     """
@@ -260,6 +276,14 @@ async def runall(
     Raises:
         N/A
     """
+    logger.info("")
+    logger.info(
+        "------------------------------------------------------"
+        "--------DCV: Beginning new run------------------------"
+        "------------------------------------------------------"
+    )
+    logger.info("")
+
     dv_obj = DomainValidator(key=key)
     dns_obj = DNSUpdater(username=username, password=password)
     await dns_obj.login()
@@ -290,13 +314,10 @@ async def runall(
     # DigiCert API has rate-limit of 100 calls per 5 seconds.
     if len(expiring_domains) >= 40:
         limit = asyncio.Semaphore(value=40)
-        print(
-            "\nDomains >40, timeout changed to 0. Use dcv check to see validation status.\n"
-        )
-        timeout = 0
     else:
         limit = None
 
+    print("\nValidating..\n")
     # Async validate em all
     coroutines = [
         validate_domain_limiter(
@@ -309,11 +330,37 @@ async def runall(
     print_final_results(results)
 
 
+async def validate_domain_limiter(
+    dv_obj: DomainValidator,
+    dns_obj: DNSUpdater,
+    domain: Dict[str, Any],
+    limit: Optional[asyncio.Semaphore],
+    timeout: int = 180,
+) -> DCVResponse:
+    """
+    Validate Domain Wrapper / Limit if necessary.
+
+    DigiCert API has rate-limit of 100 calls per 5 seconds.
+    Limit jobs in batches, if <40 jobs, don't do the unnecessary sleep at the end.
+    """
+    if not limit:
+        return await validate_domain(
+            dv_obj=dv_obj, dns_obj=dns_obj, domain=domain, timeout=timeout
+        )
+    async with limit:
+        result = await validate_domain(
+            dv_obj=dv_obj, dns_obj=dns_obj, domain=domain, timeout=timeout
+        )
+        print("Waiting 6 seconds for next batch so DigiCert doesn't block us...")
+        await asyncio.sleep(6)
+        return result
+
+
 async def validate_domain(
     dv_obj: DomainValidator,
     dns_obj: DNSUpdater,
     domain: Dict[str, Any],
-    timeout: int = 120,
+    timeout: int = 180,
 ) -> DCVResponse:
     """
     DCV - Meat and Potatoes
@@ -334,7 +381,10 @@ async def validate_domain(
 
     # Change DCV_Method to dns-cname-token if needed, get dcv_token if not.
     if domain["dcv_method"] != "dns-cname-token":
-        print(f"Changing DCV method to dns-cname-token for domain {domain['name']}: ")
+        print(
+            f"Changing DCV method to dns-cname-token for domain {domain['name']}: ",
+            end="",
+        )
         dcv_token, err = await dv_obj.change_dcv_method(
             domain=domain, dcv_type="dns-cname-token"
         )
@@ -342,7 +392,7 @@ async def validate_domain(
             response.message = err
             return response
 
-        print("DCV method updated.")
+        print("DCV method updated.\n")
 
     # Submit for validation and get dcv_token and verification_value
     dcv_token, err = await dv_obj.submit_for_validation(domain=domain)
@@ -350,7 +400,7 @@ async def validate_domain(
         response.message = err
         return response
 
-    verification_value = err
+    verification_value = err  # Not an error at this point, just renaming
     print(f"\nSubmitted {domain['name']} for validation.")
 
     # Create DNS CNAME record w/ token
@@ -360,68 +410,58 @@ async def validate_domain(
     if api_response != "Successful":
         response.message = api_response
         return response
-    print(f"CNAME: {dcv_token}.{domain['name']} created.")
+    message = f"CNAME: {dcv_token}.{domain['name']} created."
+    print(message)
+    logger.info(message)
 
-    # Check for validation every 10 seconds for up to timeout value (default 120 seconds)
+    # Check for validation every 30 seconds for up to timeout value (default 180 seconds)
     attempts = 1
-    max_attempts = int(timeout / 10)
+    max_attempts = int(timeout / 30)
     response.message = (
-        "Did not check, use dcv check -d" if not max_attempts else "Success"
+        "Timeout is 0, not checking statuses, use dcv check -d and cleanup DNS manually."
+        if not max_attempts
+        else "Success"
     )
 
     while not response.valid and max_attempts > 0:
-        if attempts > max_attempts:
-            print(
-                f"Giving up on {domain['name']} after too many retries. Leaving CNAME intact.",
-                f"Use dcv check -d {domain['name']} manually to check status.",
+        if attempts == 1:
+            print("Beginning check validation period, please wait..")
+        elif attempts > max_attempts:
+            message = (
+                f"Giving up on {domain['name']} after too many retries. "
+                "Leaving CNAME intact, Use dcv check -d {domain['name']} "
+                "manually to check status."
             )
+            print(message)
+            logging.warning(message)
             break
-        await asyncio.sleep(10)
-        print(
-            f"Checking {domain['name']} for validation, attempt #{attempts}..", end=""
-        )
+        await asyncio.sleep(30)
+        print(f"Checking {domain['name']} for validation, attempt #{attempts}.")
         response.valid = await dv_obj.check_for_validation(domain=domain)
         attempts += 1
 
     if response.valid:
-        print(f"Domain {domain['name']} successfully validated!")
+        message = f"Domain {domain['name']} successfully validated!"
+        print(message)
+        logger.info(message)
         response.cleanup = True
 
-    # DNS Cleanup
-    if response.cleanup:
+        # DNS Cleanup
         api_response = await dns_obj.delete_cname_record(
             domain_name=domain["name"], cname=dcv_token
         )
         if api_response == "Successful":
-            print(f"DNS for {domain['name']} cleaned up.")
+            response.cleanup = True
+            message = f"DNS for {domain['name']} cleaned up."
+            print(message)
+            logger.info(message)
         else:
             response.message = api_response
+            print(response.message)
+            logger.info(response.message)
             return response
 
+    else:
+        logger.error(f"Error, {dcv_token}.{domain['name']} was not cleaned up.")
+
     return response
-
-
-async def validate_domain_limiter(
-    dv_obj: DomainValidator,
-    dns_obj: DNSUpdater,
-    domain: Dict[str, Any],
-    limit: Optional[asyncio.Semaphore],
-    timeout: int = 120,
-) -> DCVResponse:
-    """
-    Validate Domain Wrapper / Limit if necessary.
-
-    DigiCert API has rate-limit of 100 calls per 5 seconds.
-    Limit jobs in batches, if <40 jobs, don't do the unnecessary sleep at the end.
-    """
-    if not limit:
-        return await validate_domain(
-            dv_obj=dv_obj, dns_obj=dns_obj, domain=domain, timeout=timeout
-        )
-    async with limit:
-        result = await validate_domain(
-            dv_obj=dv_obj, dns_obj=dns_obj, domain=domain, timeout=timeout
-        )
-        print("Rate-limiting for next batch so DigiCert doesn't block us...")
-        await asyncio.sleep(6)
-        return result
