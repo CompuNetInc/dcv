@@ -255,7 +255,7 @@ async def runall(
     password: str,
     file: str = None,
     num_days: int = 90,
-    timeout: int = 180,
+    timeout: int = 240,
     expiring_domains: List[Dict[str, Any]] = None,
 ) -> None:
     """
@@ -313,7 +313,7 @@ async def runall(
 
     # DigiCert API has rate-limit of 100 calls per 5 seconds.
     if len(expiring_domains) >= 40:
-        limit = asyncio.Semaphore(value=40)
+        limit = asyncio.Semaphore(value=20)
     else:
         limit = None
 
@@ -335,7 +335,7 @@ async def validate_domain_limiter(
     dns_obj: DNSUpdater,
     domain: Dict[str, Any],
     limit: Optional[asyncio.Semaphore],
-    timeout: int = 180,
+    timeout: int = 240,
 ) -> DCVResponse:
     """
     Validate Domain Wrapper / Limit if necessary.
@@ -351,8 +351,8 @@ async def validate_domain_limiter(
         result = await validate_domain(
             dv_obj=dv_obj, dns_obj=dns_obj, domain=domain, timeout=timeout
         )
-        print("Waiting 6 seconds for next batch so DigiCert doesn't block us...")
-        await asyncio.sleep(6)
+        # print("Waiting 6 seconds for next batch so DigiCert doesn't block us...")
+        # await asyncio.sleep(6)
         return result
 
 
@@ -360,7 +360,7 @@ async def validate_domain(
     dv_obj: DomainValidator,
     dns_obj: DNSUpdater,
     domain: Dict[str, Any],
-    timeout: int = 180,
+    timeout: int = 240,
 ) -> DCVResponse:
     """
     DCV - Meat and Potatoes
@@ -414,9 +414,9 @@ async def validate_domain(
     print(message)
     logger.info(message)
 
-    # Check for validation every 30 seconds for up to timeout value (default 180 seconds)
+    # Check for validation every 240 seconds for up to timeout value (default 240 seconds)
     attempts = 1
-    max_attempts = int(timeout / 30)
+    max_attempts = timeout / 240
     response.message = (
         "Timeout is 0, not checking statuses, use dcv check -d and cleanup DNS manually."
         if not max_attempts
@@ -426,16 +426,14 @@ async def validate_domain(
     while not response.valid and max_attempts > 0:
         if attempts == 1:
             print("Beginning check validation period, please wait..")
-        elif attempts > max_attempts:
+        elif attempts >= max_attempts:
             message = (
                 f"Giving up on {domain['name']} after too many retries. "
-                "Leaving CNAME intact, Use dcv check -d {domain['name']} "
-                "manually to check status."
             )
             print(message)
             logging.warning(message)
             break
-        await asyncio.sleep(30)
+        await asyncio.sleep(timeout)
         print(f"Checking {domain['name']} for validation, attempt #{attempts}.")
         response.valid = await dv_obj.check_for_validation(domain=domain)
         attempts += 1
@@ -446,22 +444,23 @@ async def validate_domain(
         logger.info(message)
         response.cleanup = True
 
-        # DNS Cleanup
-        api_response = await dns_obj.delete_cname_record(
-            domain_name=domain["name"], cname=dcv_token
-        )
-        if api_response == "Successful":
-            response.cleanup = True
-            message = f"DNS for {domain['name']} cleaned up."
-            print(message)
-            logger.info(message)
-        else:
-            response.message = api_response
-            print(response.message)
-            logger.info(response.message)
-            return response
-
     else:
+        logger.error(f"Error, {domain['name']} was not validated.")
+
+    # DNS Cleanup
+    api_response = await dns_obj.delete_cname_record(
+        domain_name=domain["name"], cname=dcv_token
+    )
+    if api_response == "Successful":
+        response.cleanup = True
+        message = f"DNS for {domain['name']} cleaned up."
+        print(message)
+        logger.info(message)
+    else:
+        response.message = api_response
+        print(response.message)
+        logger.error(response.message)
         logger.error(f"Error, {dcv_token}.{domain['name']} was not cleaned up.")
+        return response
 
     return response
