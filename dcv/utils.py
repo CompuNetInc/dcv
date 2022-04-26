@@ -10,10 +10,14 @@ from dcv.dns_updater import DNSUpdater
 from dcv.domain_validator import DomainValidator
 
 # Logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("utils")
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s:%(levelname)s:%(message)s")
-file_handler = logging.FileHandler("dcv.log")
+try:
+    file_handler = logging.FileHandler("dcv.log")
+except PermissionError:
+    print("Permission denied creating dcv.log, check folder permissions.")
+    sys.exit(1)
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 

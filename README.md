@@ -20,7 +20,9 @@ Once Python is installed, using DCV is easy:
    - `python -m venv venv`
      - `source venv/bin/activate` (Linux/Mac)
      - `venv/bin/activate` (Windows)
-1. Installing from GitHub
+1. Installing from GitHub     
+   - (if on Windows and you don't have git installed, install git first)
+      https://git-scm.com/download/windows
    - `pip install git+https://github.com/compunetinc/dcv.git`
 
 ..and you're done!
@@ -82,7 +84,7 @@ set NEU_PASSWORD=mypassword
 
 
 ### Example Usage
-All commands support adding --help to get extra information
+**All commands support adding --help to get extra information**
 If using docker, precede all commands with `docker-compose run`, i.e. `docker-compose run dcv check -d abc.com`
 
 Logfile with error messages and final domain statuses found in dcv.log
@@ -104,6 +106,8 @@ If manually specifying secrets (recommended to use Environment Variables, see ab
 - Validate a specific domain regardless of expiration status:
   - `dcv validate` (will be prompted for domain name)
   - `dcv validate --domain abc.com`
+- Validate a specific domain, lower timeout seconds (recommended >90):
+  - `dcv validate --domain abc.com --timeout 120`
 
 #### Runall:
 - Check for and validate ALL expiring domains, 90 days (default) expiration:
