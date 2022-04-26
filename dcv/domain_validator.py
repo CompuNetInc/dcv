@@ -106,9 +106,13 @@ class DomainValidator:
                 ev_exp_str = dcv_expiration["ev"]
                 ov_exp_str = dcv_expiration["ov"]
             else:
-                print(
-                    f"Info: domain has never been validated, will be ignored: {domain['name']}."
+                message = (
+                    f"Info: No expiration, domain has likely never been validated, "
+                    f"will be ignored: use dcv validate -d {domain['name']} "
+                    "to manually validate if desired."
                 )
+                print(message)
+                logger.info(message)
                 continue
 
             ev_exp = datetime.strptime(ev_exp_str, "%Y-%m-%d")
