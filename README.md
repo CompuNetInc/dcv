@@ -3,6 +3,9 @@ DigiCert & Neustar/UltraDNS Domain Validation
 Command line tool to check DigiCert for expiring 'soon' domains. If deemed expiring (default 90 days, user configurable),
 it will automatically validate the domains via dns cname records (assuming you own the zone in UltraDNS).
 
+Due to DigiCert API rate limiting, any number of domains above 40 will be instead run as 
+separate batch jobs, 40 domains each, until completion.
+
 Two installation options:
 - [Python based](#Python-Based)
 - [Docker based](#Docker-Based)
@@ -53,23 +56,65 @@ or forgot to activate the virtual environment.
 #### Requirements
 A DigiCert API key is required in order to authenticate to DigiCert, and Neustar Username/Password is required for that API. 
 These credentials will be prompted for if not given via the appropriate flags, 
-however you can also use environment variables to avoid getting prompted on each run if you are doing multiple passes. 
+however you can also use environment variables to avoid getting prompted on each run if you are doing multiple passes 
+or if running dcv in an automated fashion.
+
 The environment variables are listed below:
 
   * DIGICERT_KEY
-  * NEUSTAR_USER
-  * NEUSTAR_PASS
+  * NEU_USERNAME
+  * NEU_PASSWORD
 
 Set these variables appropriately for your operating system (see below), and you won't be prompted anymore!
 
 Linux/Mac:
 ```shell
 export DIGICERT_KEY=abcd123456
+export NEU_USERNAME=myuser
+export NEU_PASSWORD=mypassword
 ```
 Windows:
 ```shell
 set DIGICERT_KEY=abcd123456
+set NEU_USERNAME=myuser
+set NEU_PASSWORD=mypassword
 ```
+
+
+### Example Usage
+All commands support adding --help to get extra information
+If using docker, precede all commands with 'docker-compose run', i.e. 'docker-compose run dcv check -d abc.com'
+
+Logfile with error messages and final domain statuses found in dcv.log
+
+If manually specifying secrets (recommended to use Environment Variables, see above):
+  - `dcv check --key ABCD1234`
+  - `dcv validate --key ABCD1234 --username NEU-USERNAME --password NEU-PASSWORD`
+  - `dcv runall --key ABCD1234 --username NEU-USERNAME --password NEU-PASSWORD`
+
+#### Check status only:
+- Check all domains, 90 days (default) expiration:
+  - `dcv check`
+- Check all domains, 300 days (custom) expiration:
+  - `dcv check --num-days 300`
+- Check only one domain, get validation status & expiration:
+  - `dcv check --domain abc.com`
+
+#### Validate a single domain:
+- Validate a specific domain regardless of expiration status:
+  - `dcv validate` (will be prompted for domain name)
+  - `dcv validate --domain abc.com`
+
+#### Runall:
+- Check for and validate ALL expiring domains, 90 days (default) expiration:
+  - `dcv runall`
+- Check for and validate ALL expiring domains, 300 days (custom) expiration:
+  - `dcv runall --num-days 300`
+- Check for and validate all domains found in \<domainsfile.txt\>, 90 days (default) expiration:
+  - `dcv runall --file domainsfile.txt`
+- Check for and validate all domains found in \<domainsfile.txt\>, 300 days (custom) expiration:
+  - `dcv runall --file domainsfile.txt`
+
 
 ## <a name="Docker-Based"></a> Usage with Docker
 
