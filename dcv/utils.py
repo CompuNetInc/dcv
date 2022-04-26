@@ -427,9 +427,7 @@ async def validate_domain(
         if attempts == 1:
             print("Beginning check validation period, please wait..")
         elif attempts > max_attempts:
-            message = (
-                f"Giving up on {domain['name']} after too many retries. "
-            )
+            message = f"Giving up on {domain['name']} after too many retries. "
             print(message)
             logging.warning(message)
             break

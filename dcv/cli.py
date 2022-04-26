@@ -2,9 +2,11 @@
 import asyncio
 from typing import Optional
 
+import platform
 import typer
 
 import dcv.utils as dcv
+
 
 app = typer.Typer(
     name="dcv",
@@ -48,9 +50,13 @@ def check(
 
     if domain_name:
         print(f"Checking status and expiration of {domain_name}..\n\n")
+        if platform.system() == 'Windows':
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         asyncio.run(dcv.check_single(key=key, domain_name=domain_name))
     else:
         print(f"Checking for expiring domains within {num_days} from now..\n")
+        if platform.system() == 'Windows':
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         asyncio.run(dcv.check(key=key, num_days=num_days))
 
     print("\nThank you for using DCV.\n")
@@ -104,6 +110,8 @@ def validate(
     """
 
     print(f"Validating expiring domain {domain_name} manually..\n\n")
+    if platform.system() == 'Windows':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(
         dcv.validate_single(
             key=key,
@@ -173,6 +181,8 @@ def run_all(
         f"Checking for and Validating expiring domains within {num_days} from now..\n\n"
     )
     # Async validate dem mains!
+    if platform.system() == 'Windows':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(
         dcv.runall(
             key=key,
