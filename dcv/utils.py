@@ -80,15 +80,17 @@ def print_expiring_domains(domains: List[Dict[str, Any]]) -> None:
 
     else:
         for domain in domains:
-            ov_exp = domain["dcv_expiration"]["ov"]
-            ev_exp = domain["dcv_expiration"]["ev"]
-            ev_exp_d = datetime.strptime(ev_exp, "%Y-%m-%d")
-            ov_exp_d = datetime.strptime(ov_exp, "%Y-%m-%d")
-            exp_date_d = (
-                ev_exp_d if ev_exp_d < ov_exp_d else ov_exp_d
-            )  # Get lowest date
-
-            print(f"{domain['name']:<30} {f'Expiration: {exp_date_d.date()}':>30}")
+            try:
+                ov_exp = domain["dcv_expiration"]["ov"]
+                ev_exp = domain["dcv_expiration"]["ev"]
+                ev_exp_d = datetime.strptime(ev_exp, "%Y-%m-%d")
+                ov_exp_d = datetime.strptime(ov_exp, "%Y-%m-%d")
+                exp_date_d = (
+                    ev_exp_d if ev_exp_d < ov_exp_d else ov_exp_d
+                )  # Get lowest date
+                print(f"{domain['name']:<30} {f'Expiration: {exp_date_d.date()}':>30}")
+            except KeyError:
+                print(f"{domain['name']:<30} No expiration found, new domain?")
 
 
 def read_domains_from_file(filename: str) -> Dict[str, None]:
