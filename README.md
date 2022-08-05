@@ -92,8 +92,8 @@ Logfile with error messages and final domain statuses found in dcv.log
 
 If manually specifying secrets (recommended to use Environment Variables, see above):
   - `dcv check --key ABCD1234`
-  - `dcv validate --key ABCD1234 --username NEU-USERNAME --password NEU-PASSWORD`
-  - `dcv runall --key ABCD1234 --username NEU-USERNAME --password NEU-PASSWORD`
+  - `dcv validate --key ABCD1234 --username NEU_USERNAME --password NEU_PASSWORD`
+  - `dcv runall --key ABCD1234 --username NEU_USERNAME --password NEU_PASSWORD`
 
 #### Check status only:
 - Check all domains, 90 days (default) expiration:
