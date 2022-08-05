@@ -16,11 +16,12 @@ Without Docker, you'll need Python 3.7+, you can install python via https://www.
 
 Once Python is installed, using DCV is easy:
 
-0. Highly HIGHLY recommended but not required, a virtual environment
+0. DO NOT RUN WITHIN POWERSHELL, USE CMD/Terminal/Bash/ZSH/etc.
+1. Highly HIGHLY recommended but not required, a virtual environment
    - `python -m venv venv`
      - `source venv/bin/activate` (Linux/Mac)
      - `venv/bin/activate` (Windows)
-1. Installing from GitHub     
+2. Installing from GitHub     
    - (if on Windows and you don't have git installed, install git first)
       https://git-scm.com/download/windows
    - `pip install git+https://github.com/compunetinc/dcv.git`
