@@ -90,7 +90,7 @@ def print_expiring_domains(domains: List[Dict[str, Any]]) -> None:
                 )  # Get lowest date
                 print(f"{domain['name']:<30} {f'Expiration: {exp_date_d.date()}':>30}")
             except KeyError:
-                print(f"{domain['name']:<30} No expiration found, new domain?")
+                print(f"{domain['name']:<30} No expiration found, must be a new domain.")
 
 
 def read_domains_from_file(filename: str) -> Dict[str, None]:
