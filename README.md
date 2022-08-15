@@ -118,7 +118,7 @@ If manually specifying secrets (recommended to use Environment Variables, see ab
 - Check for and validate all domains found in \<domainsfile.txt\>, 90 days (default) expiration:
   - `dcv runall --file domainsfile.txt`
 - Check for and validate all domains found in \<domainsfile.txt\>, 300 days (custom) expiration:
-  - `dcv runall --file domainsfile.txt`
+  - `dcv runall --num-days 300 --file domainsfile.txt`
 
 
 ## <a name="Docker-Based"></a> Usage with Docker
